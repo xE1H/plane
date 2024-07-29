@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RC Plane OSD</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: black;
+        }
+
+        #container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #videoFrame {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        #osdCanvas {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+<div style="position:fixed;width:100%;height:100%;z-index:999;"></div>
+<div id="container">
+    <iframe id="videoFrame" src="http://plane:8889/cam/"></iframe>
+    <canvas id="osdCanvas"></canvas>
+</div>
+
+<script>
+    const canvas = document.getElementById('osdCanvas');
+    const ctx = canvas.getContext('2d');
+    const scale = 1.5; // Scale factor for OSD elements
+
+    // Resize canvas to 16:9 aspect ratio
+    function resizeCanvas() {
+        const containerWidth = window.innerWidth;
+        const containerHeight = window.innerHeight;
+        const aspectRatio = 16 / 9;
+
+        let canvasWidth, canvasHeight;
+
+        if (containerWidth / containerHeight > aspectRatio) {
+            canvasHeight = containerHeight;
+            canvasWidth = canvasHeight * aspectRatio;
+        } else {
+            canvasWidth = containerWidth;
+            canvasHeight = canvasWidth / aspectRatio;
+        }
+
+        canvas.width = canvasWidth;
+        canvas.height = canvasHeight;
+        canvas.style.width = `${canvasWidth}px`;
+        canvas.style.height = `${canvasHeight}px`;
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // Telemetry data
+    let telemetry = {
+        speed: 0,        // meters per second (m/s)
+        altitude: 0,     // meters (m)
+        heading: 0,      // degrees (0-359°)
+        pitch: 0,        // degrees (-90° to 90°)
+        roll: 0,         // degrees (-180° to 180°)
+        battery: 0,      // volts (V)
+        mAhUsed: 0,      // milliamp hours (mAh)
+        mAhPerKm: 0,     // milliamp hours per kilometer (mAh/km)
+        latitude: 0,     // degrees (-90° to 90°)
+        longitude: 0,    // degrees (-180° to 180°)
+        distanceToHome: 0, // kilometers (km)
+        headingToHome: 0,   // degrees (0-359°)
+        timestamp: "2021-01-01Z00:00:00"
+    };
+
+    // Mock telemetry function
+    function mockTelemetry() {
+        const time = Date.now() / 1000; // Current time in seconds
+        telemetry = {
+            speed: 5 + 5 * Math.sin(time / 10),
+            altitude: 100 + 50 * Math.sin(time / 15),
+            heading: (time * 10) % 360,
+            pitch: 10 * Math.sin(time / 5),
+            roll: 15 * Math.sin(time / 7),
+            battery: 14.8 + 1.7 * Math.sin(time / 30), // 4S battery voltage
+            mAhUsed: 1000 + 500 * Math.sin(time / 20),
+            mAhPerKm: 100 + 20 * Math.sin(time / 25),
+            latitude: 37.7749 + 0.01 * Math.sin(time / 100),
+            longitude: -122.4194 + 0.01 * Math.cos(time / 100),
+            distanceToHome: 10 + 5 * Math.sin(time / 20), // km
+            headingToHome: (180 + 90 * Math.sin(time / 15)) % 360,
+            timestamp: new Date().toISOString()
+        };
+    }
+
+    // Draw OSD elements
+    function drawOSD() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Set common styles
+        ctx.fillStyle = 'white';
+        ctx.strokeStyle = 'black';
+        ctx.lineWidth = 3 * scale;
+
+        drawHomeInfo(15 * scale, 45 * scale);
+
+        // Speed (step of 5 m/s)
+        drawScrollingValue(75 * scale, canvas.height / 2, telemetry.speed, 'm/s', 1, 1);
+
+        // Altitude (step of 10 m)
+        drawScrollingValue(canvas.width - 75 * scale, canvas.height / 2, telemetry.altitude, 'm', 0, 10);
+
+
+        // Attitude indicator
+        drawAttitudeIndicator(canvas.width / 2, canvas.height / 2, 150 * scale);
+
+        // Compass
+        drawCompass(canvas.width / 2, 45 * scale, telemetry.heading);
+
+        // Battery voltage and other measurements
+        drawText(canvas.width - 15 * scale, 45 * scale, `${telemetry.battery.toFixed(1)}V`, 'right', `${24 * scale}px Arial`);
+        drawText(canvas.width - 15 * scale, 75 * scale, `${telemetry.mAhUsed.toFixed(0)} mAh`, 'right', `${20 * scale}px Arial`);
+        drawText(canvas.width - 15 * scale, 105 * scale, `${telemetry.mAhPerKm.toFixed(1)} mAh/km`, 'right', `${20 * scale}px Arial`);
+
+        // Coordinates
+        drawText(canvas.width - 15 * scale, canvas.height - 15 * scale,
+            `${telemetry.latitude.toFixed(6)}, ${telemetry.longitude.toFixed(6)}`, 'right', `${24 * scale}px Arial`);
+
+        drawText( 15 * scale, canvas.height - 15 * scale,
+            `${telemetry.timestamp}`, 'left', `${24 * scale}px Arial`);
+    }
+
+    function drawScrollingValue(x, y, value, unit, precision, step = 10) {
+        ctx.textAlign = 'center';
+        const range = 5 * step;
+
+        // Ensure value is non-negative
+        value = Math.max(0, value);
+
+        // Calculate the base value (multiple of step) and the offset
+        const baseValue = Math.floor(value / step) * step;
+
+        for (let i = -range; i <= range; i += step) {
+            let displayValue = baseValue + i;
+            if (displayValue < 0) continue; // Skip negative values
+
+            let distance = Math.abs(value - displayValue);
+            let alpha = Math.max(0, 1 - distance / range);
+
+            // Gradually decrease visibility near the center
+            if (distance < step) {
+                alpha *= distance / step;
+            }
+
+            let fontSize = 24 * scale * (1 + alpha * 0.5);
+            let yOffset = (value - baseValue) * (30 * scale / step);
+
+            ctx.font = `${fontSize}px Arial`;
+            ctx.globalAlpha = alpha;
+            ctx.strokeText(displayValue.toFixed(0), x, y + (i / step) * 30 * scale - yOffset);
+            ctx.fillText(displayValue.toFixed(0), x, y + (i / step) * 30 * scale - yOffset);
+        }
+
+        // Center (current) value
+        ctx.globalAlpha = 1;
+        ctx.font = `bold ${36 * scale}px Arial`;
+        ctx.strokeText(value.toFixed(precision), x, y);
+        ctx.fillText(value.toFixed(precision), x, y);
+
+        // Unit
+        ctx.font = `${24 * scale}px Arial`;
+        ctx.strokeText(unit, x, y + 6 * 30 * scale);
+        ctx.fillText(unit, x, y + 6 * 30 * scale);
+    }
+
+    function drawHomeInfo(x, y) {
+        const homeSymbol = '⌂'; // Unicode home symbol
+        ctx.font = `${36 * scale}px Arial`;
+        ctx.fillStyle = 'white';
+        ctx.textAlign = 'left';
+
+        // Draw home symbol
+        ctx.strokeText(homeSymbol, x, y);
+        ctx.fillText(homeSymbol, x, y);
+
+
+        // Draw distance to home
+        ctx.font = `${24 * scale}px Arial`;
+        let km = `${telemetry.distanceToHome.toFixed(1)}km`;
+        ctx.strokeText(km, x + 40 * scale, y);
+        ctx.fillText(km, x + 40 * scale, y);
+
+        // Draw heading to home
+        let deg = `${Math.round(telemetry.headingToHome)}°`
+        ctx.strokeText(deg, x + 40 * scale, y + 30 * scale);
+        ctx.fillText(deg, x + 40 * scale, y + 30 * scale);
+    }
+
+
+    function drawAttitudeIndicator(x, y, size) {
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(telemetry.roll * Math.PI / 180);
+
+        // Pitch lines
+        ctx.strokeStyle = 'white';
+        for (let i = -30; i <= 30; i += 10) {
+            let lineY = (i - telemetry.pitch) * size / 60;
+            ctx.beginPath();
+            if (i === 0) {
+                ctx.moveTo(-size / 2, lineY);
+                ctx.lineTo(size / 2, lineY);
+            } else {
+                ctx.moveTo(-size / 4, lineY);
+                ctx.lineTo(size / 4, lineY);
+            }
+            ctx.stroke();
+        }
+
+        // Center point
+        ctx.fillStyle = 'yellow';
+        ctx.beginPath();
+        ctx.arc(0, 0, 7.5 * scale, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Side markers
+        ctx.strokeStyle = 'yellow';
+        ctx.lineWidth = 3 * scale;
+        ctx.beginPath();
+        ctx.moveTo(-size / 2 - 30 * scale, 0);
+        ctx.lineTo(-size / 2, 0);
+        ctx.moveTo(size / 2, 0);
+        ctx.lineTo(size / 2 + 30 * scale, 0);
+        ctx.stroke();
+
+        ctx.restore();
+    }
+
+    function drawCompass(x, y, heading) {
+        ctx.textAlign = 'center';
+        ctx.font = `${24 * scale}px Arial`;
+        ctx.strokeText(heading.toFixed(0) + '°', x, y);
+        ctx.fillText(heading.toFixed(0) + '°', x, y);
+    }
+
+    function drawText(x, y, text, align = 'left', font = `${24 * scale}px Arial`) {
+        ctx.textAlign = align;
+        ctx.font = font;
+        ctx.strokeText(text, x, y);
+        ctx.fillText(text, x, y);
+    }
+
+    // Main loop
+    function update() {
+        mockTelemetry();
+        drawOSD();
+        requestAnimationFrame(update);
+    }
+
+    update();
+</script>
+</body>
+</html>
