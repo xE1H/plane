@@ -11,11 +11,11 @@ def signal_quality():
     sq = requests.get('http://192.168.8.1/api/device/signal').text
     xmldoc = minidom.parseString(sq)
     itemlist = xmldoc.getElementsByTagName('rssi')
-    rssi = itemlist[0].firstChild.nodeValue
+    rssi = int(itemlist[0].firstChild.nodeValue)
     itemlist = xmldoc.getElementsByTagName('rsrq')
-    rsrq = itemlist[0].firstChild.nodeValue
+    rsrq = int(itemlist[0].firstChild.nodeValue)
     itemlist = xmldoc.getElementsByTagName('rsrp')
-    rsrp = itemlist[0].firstChild.nodeValue
+    rsrp = int(itemlist[0].firstChild.nodeValue)
 
     return sigqual.calculate_signal_quality(rssi, rsrq, rsrp)
 

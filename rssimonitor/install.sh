@@ -1,4 +1,4 @@
-python -m pip install -r requirements.txt
+python -m pip install -r requirements.txt --break-system-packages
 
 SERVICE_DEF="[Unit]
 Description=RSSI Monitor
@@ -9,7 +9,7 @@ Type=simple
 Restart=always
 User=$USER
 WorkingDirectory=$PWD
-ExecStart=python -m gunicorn -b 0.0.0,0:8133 app:app
+ExecStart=python -m gunicorn -b 0.0.0.0:8133 app:app
 
 [Install]
 WantedBy=multi-user.target
