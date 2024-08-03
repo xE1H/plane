@@ -23,7 +23,8 @@ def stream():
     def generate():
         while True:
             mavlink.telemetry_changed.wait()
-            yield f"data: {json.dumps(mavlink.telemetry + {'signal': rssi})}\n\n"
+            mavlink.telemetry.update({'signal': rssi.signal})
+            yield f"data: {json.dumps(mavlink.telemetry)}\n\n"
             mavlink.telemetry_changed.clear()
 
     return flask.Response(generate(), mimetype='text/event-stream')

@@ -125,12 +125,12 @@
         drawText(canvas.width - 15 * scale, 45 * scale, `${telemetry.battery.toFixed(1)}V`, 'right', `${24 * scale}px Arial`);
         drawText(canvas.width - 15 * scale, 75 * scale, `${telemetry.mAhUsed.toFixed(0)} mAh`, 'right', `${20 * scale}px Arial`);
         drawText(canvas.width - 15 * scale, 105 * scale, `${telemetry.mAhPerKm.toFixed(1)} mAh/km`, 'right', `${20 * scale}px Arial`);
-
+        drawText(canvas.width - 15 * scale, 130 * scale, `SQ ${telemetry.signal.toFixed(0)}%`, 'right', `${16 * scale}px Arial`)
 
         drawText(15 * scale, 115 * scale, `${(telemetry.amps).toFixed(2)} A`, 'left', `${24 * scale}px Arial`);
         drawText(15 * scale, 145 * scale, `${(telemetry.coveredDistance).toFixed(2)} km`, 'left', `${20 * scale}px Arial`);
         drawText(15 * scale, 175 * scale, `T+${telemetry.flightTime}`, 'left', `${20 * scale}px Arial`);
-        drawText(15 * scale, 205 * scale, `SQ ${telemetry.signal}%`, 'left', `${20 * scale}px Arial`)
+
 
 
         // Coordinates

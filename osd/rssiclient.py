@@ -12,5 +12,5 @@ class RssiFetcher:
     def loop(self):
         while True:
             response = requests.get('http://plane:8133/signal_quality')
-            self.signal = int(response.text)
+            self.signal = float(response.text)
             time.sleep(10)
