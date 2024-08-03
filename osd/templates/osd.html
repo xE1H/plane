@@ -88,28 +88,14 @@
         longitude: 0,    // degrees (-180° to 180°)
         distanceToHome: 0, // kilometers (km)
         headingToHome: 0,   // degrees (0-359°)
-        timestamp: "2021-01-01Z00:00:00"
+        timestamp: "2021-01-01Z00:00:00",
+        amps: 0, // Amps
+        coveredDistance: 0, // km
+        flightTime: "01:59:32", // hh:mm:ss
+        armed: false,
+        flightMode: "UNKNOWN",
+        signal: 0
     };
-
-    // Mock telemetry function
-    function mockTelemetry() {
-        const time = Date.now() / 1000; // Current time in seconds
-        telemetry = {
-            speed: 5 + 5 * Math.sin(time / 10),
-            altitude: 100 + 50 * Math.sin(time / 15),
-            heading: (time * 10) % 360,
-            pitch: 10 * Math.sin(time / 5),
-            roll: 15 * Math.sin(time / 7),
-            battery: 14.8 + 1.7 * Math.sin(time / 30), // 4S battery voltage
-            mAhUsed: 1000 + 500 * Math.sin(time / 20),
-            mAhPerKm: 100 + 20 * Math.sin(time / 25),
-            latitude: 37.7749 + 0.01 * Math.sin(time / 100),
-            longitude: -122.4194 + 0.01 * Math.cos(time / 100),
-            distanceToHome: 10 + 5 * Math.sin(time / 20), // km
-            headingToHome: (180 + 90 * Math.sin(time / 15)) % 360,
-            timestamp: new Date().toISOString()
-        };
-    }
 
     // Draw OSD elements
     function drawOSD() {
@@ -140,12 +126,25 @@
         drawText(canvas.width - 15 * scale, 75 * scale, `${telemetry.mAhUsed.toFixed(0)} mAh`, 'right', `${20 * scale}px Arial`);
         drawText(canvas.width - 15 * scale, 105 * scale, `${telemetry.mAhPerKm.toFixed(1)} mAh/km`, 'right', `${20 * scale}px Arial`);
 
+
+        drawText(15 * scale, 115 * scale, `${(telemetry.amps).toFixed(2)} A`, 'left', `${24 * scale}px Arial`);
+        drawText(15 * scale, 145 * scale, `${(telemetry.coveredDistance).toFixed(2)} km`, 'left', `${20 * scale}px Arial`);
+        drawText(15 * scale, 175 * scale, `T+${telemetry.flightTime}`, 'left', `${20 * scale}px Arial`);
+        drawText(15 * scale, 205 * scale, `SQ ${telemetry.signal}%`, 'left', `${20 * scale}px Arial`)
+
+
         // Coordinates
         drawText(canvas.width - 15 * scale, canvas.height - 15 * scale,
             `${telemetry.latitude.toFixed(6)}, ${telemetry.longitude.toFixed(6)}`, 'right', `${24 * scale}px Arial`);
 
-        drawText( 15 * scale, canvas.height - 15 * scale,
+        drawText(15 * scale, canvas.height - 15 * scale,
             `${telemetry.timestamp}`, 'left', `${24 * scale}px Arial`);
+
+        // Draw DISARMED if disarmed
+        if (!telemetry.armed) drawText(canvas.width / 2, 200 * scale, 'DISARMED', 'center', `bold ${48 * scale}px Arial`, 'red');
+
+        // Draw mode
+        drawText(canvas.width / 2, canvas.height - 15 * scale, telemetry.flightMode, 'center', `bold ${24 * scale}px Arial`);
     }
 
     function drawScrollingValue(x, y, value, unit, precision, step = 10) {
@@ -171,12 +170,12 @@
             }
 
             let fontSize = 24 * scale * (1 + alpha * 0.5);
-            let yOffset = (value - baseValue) * (30 * scale / step);
+            let yOffset = -(value - baseValue) * (30 * scale / step);
 
             ctx.font = `${fontSize}px Arial`;
             ctx.globalAlpha = alpha;
-            ctx.strokeText(displayValue.toFixed(0), x, y + (i / step) * 30 * scale - yOffset);
-            ctx.fillText(displayValue.toFixed(0), x, y + (i / step) * 30 * scale - yOffset);
+            ctx.strokeText(displayValue.toFixed(0), x, y - (i / step) * 30 * scale - yOffset);
+            ctx.fillText(displayValue.toFixed(0), x, y - (i / step) * 30 * scale - yOffset);
         }
 
         // Center (current) value
@@ -223,14 +222,17 @@
         // Pitch lines
         ctx.strokeStyle = 'white';
         for (let i = -30; i <= 30; i += 10) {
-            let lineY = (i - telemetry.pitch) * size / 60;
+            let lineY = (i + telemetry.pitch) * size / 60;
             ctx.beginPath();
             if (i === 0) {
                 ctx.moveTo(-size / 2, lineY);
                 ctx.lineTo(size / 2, lineY);
-            } else {
+            } else if (i % 30 === 0) {
                 ctx.moveTo(-size / 4, lineY);
                 ctx.lineTo(size / 4, lineY);
+            } else {
+                ctx.moveTo(-size / 6, lineY);
+                ctx.lineTo(size / 6, lineY);
             }
             ctx.stroke();
         }
@@ -238,7 +240,7 @@
         // Center point
         ctx.fillStyle = 'yellow';
         ctx.beginPath();
-        ctx.arc(0, 0, 7.5 * scale, 0, Math.PI * 2);
+        ctx.arc(0, 0, 3 * scale, 0, Math.PI * 2);
         ctx.fill();
 
         // Side markers
@@ -261,16 +263,24 @@
         ctx.fillText(heading.toFixed(0) + '°', x, y);
     }
 
-    function drawText(x, y, text, align = 'left', font = `${24 * scale}px Arial`) {
+    function drawText(x, y, text, align = 'left', font = `${24 * scale}px Arial`, color = 'white') {
         ctx.textAlign = align;
         ctx.font = font;
+        ctx.fillStyle = color;
+
         ctx.strokeText(text, x, y);
         ctx.fillText(text, x, y);
     }
 
+    const eventSource = new EventSource('/stream');
+    eventSource.onmessage = function (event) {
+        telemetry = JSON.parse(event.data);
+        console.log("msg");
+    };
+
     // Main loop
     function update() {
-        mockTelemetry();
+        //getTelemetry();
         drawOSD();
         requestAnimationFrame(update);
     }
