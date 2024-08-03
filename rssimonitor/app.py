@@ -17,7 +17,7 @@ def signal_quality():
     itemlist = xmldoc.getElementsByTagName('rsrp')
     rsrp = float(itemlist[0].firstChild.nodeValue[:-3])
 
-    return sigqual.calculate_signal_quality(rssi, rsrq, rsrp)
+    return str(sigqual.calculate_signal_quality(rssi, rsrq, rsrp))
 
 
 if __name__ == '__main__':
